@@ -56,18 +56,18 @@ struct RuntimeEntry: Identifiable {
 
 ## Source-Based Logs
 
-Use `LogLineSource` when the log storage should own loading, filtering, or live updates.
+Use `LogSource` when the log storage should own loading, filtering, or live updates.
 
 ```swift
 @MainActor
-final class RuntimeLogSource: LogLineSource {
+final class RuntimeLogSource: LogSource {
     private var entries: [RuntimeEntry] = []
 
-    var numberOfLogLines: Int {
+    var numberOfLines: Int {
         entries.count
     }
 
-    func logLine(at index: Int) -> RuntimeEntry {
+    func line(at index: Int) -> RuntimeEntry {
         entries[index]
     }
 
@@ -123,7 +123,7 @@ Wrapping is enabled by default.
 
 ```swift
 Logs(source: source, text: \.message)
-    .logLineWrapping(.wrap)
+    .logWrapping(.wrap)
 ```
 
 Use horizontal scrolling for single-line log views:
@@ -134,7 +134,7 @@ Logs(source: source, text: \.message) { entry in
         .font(.system(size: 11, design: .monospaced))
         .lineLimit(1)
 }
-.logLineWrapping(.scroll)
+.logWrapping(.scroll)
 ```
 
 ## Filtering
@@ -143,44 +143,44 @@ Filtering belongs in the source, not the view. This keeps the viewer focused on 
 
 ```swift
 @MainActor
-final class FilteredLogLineSource: LogLineSource {
-    private let source: AnyLogLineSource<RuntimeEntry>
+final class FilteredLogSource: LogSource {
+    private let source: AnyLogSource<RuntimeEntry>
     private let indexes: [Int]
 
-    init<Source: LogLineSource>(source: Source, query: String) where Source.Line == RuntimeEntry {
-        self.source = AnyLogLineSource(source)
+    init<Source: LogSource>(source: Source, query: String) where Source.Line == RuntimeEntry {
+        self.source = AnyLogSource(source)
 
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty else {
-            self.indexes = Array(0..<source.numberOfLogLines)
+            self.indexes = Array(0..<source.numberOfLines)
             return
         }
 
         var matchingIndexes: [Int] = []
-        for index in 0..<source.numberOfLogLines {
-            if source.logLine(at: index).message.localizedStandardContains(trimmedQuery) {
+        for index in 0..<source.numberOfLines {
+            if source.line(at: index).message.localizedStandardContains(trimmedQuery) {
                 matchingIndexes.append(index)
             }
         }
         self.indexes = matchingIndexes
     }
 
-    var numberOfLogLines: Int {
+    var numberOfLines: Int {
         indexes.count
     }
 
-    func logLine(at index: Int) -> RuntimeEntry {
-        source.logLine(at: indexes[index])
+    func line(at index: Int) -> RuntimeEntry {
+        source.line(at: indexes[index])
     }
 }
 ```
 
 ## Performance Model
 
-LogViewer does not create SwiftUI rows for the entire log collection. It hosts only the rows intersecting the visible viewport and reads lines through `LogLineSource` by index.
+LogViewer does not create SwiftUI rows for the entire log collection. It hosts only the rows intersecting the visible viewport and reads lines through `LogSource` by index.
 
 ```text
-LogLineSource
+LogSource
     -> Logs
         -> virtual AppKit document view
             -> visible SwiftUI row hosts

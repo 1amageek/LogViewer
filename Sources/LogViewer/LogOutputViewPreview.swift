@@ -12,7 +12,7 @@ import SwiftUI
             .background(backgroundColor(for: line), in: RoundedRectangle(cornerRadius: 4))
     }
     .logTextInset(8)
-    .logLineWrapping(.scroll)
+    .logWrapping(.scroll)
     .frame(width: 420, height: 320)
 }
 
@@ -23,7 +23,7 @@ import SwiftUI
             .background(backgroundColor(for: line))
     }
     .logTextInset(12)
-    .logLineWrapping(.scroll)
+    .logWrapping(.scroll)
     .frame(width: 420, height: 260)
 }
 
@@ -33,15 +33,15 @@ import SwiftUI
             .padding(12)
             .background(backgroundColor(for: line))
     }
-    .logLineWrapping(.wrap)
+    .logWrapping(.wrap)
     .logTextInset(12)
     .frame(width: 420, height: 320)
 }
 
 #Preview("Source Filter") {
     Logs(
-        source: PreviewFilteredLogLineSource(
-            source: ArrayLogLineSource(previewLines),
+        source: PreviewFilteredLogSource(
+            source: ArrayLogSource(previewLines),
             query: "warning"
         ),
         text: \.text
@@ -51,14 +51,14 @@ import SwiftUI
             .background(backgroundColor(for: line), in: RoundedRectangle(cornerRadius: 4))
     }
     .logTextInset(8)
-    .logLineWrapping(.scroll)
+    .logWrapping(.scroll)
     .frame(width: 720, height: 320)
 }
 
 #Preview("Source Filter Empty") {
     Logs(
-        source: PreviewFilteredLogLineSource(
-            source: ArrayLogLineSource(previewLines),
+        source: PreviewFilteredLogSource(
+            source: ArrayLogSource(previewLines),
             query: "missing"
         ),
         text: \.text
@@ -68,7 +68,7 @@ import SwiftUI
             .background(backgroundColor(for: line), in: RoundedRectangle(cornerRadius: 4))
     }
     .logTextInset(8)
-    .logLineWrapping(.scroll)
+    .logWrapping(.scroll)
     .frame(width: 420, height: 320)
 }
 
@@ -133,34 +133,34 @@ private struct PreviewWrappingLogRow: View {
 }
 
 @MainActor
-private final class PreviewFilteredLogLineSource: LogLineSource {
-    private let source: AnyLogLineSource<PreviewLogEntry>
+private final class PreviewFilteredLogSource: LogSource {
+    private let source: AnyLogSource<PreviewLogEntry>
     private let indexes: [Int]
 
-    init<Source: LogLineSource>(source: Source, query: String) where Source.Line == PreviewLogEntry {
-        self.source = AnyLogLineSource(source)
+    init<Source: LogSource>(source: Source, query: String) where Source.Line == PreviewLogEntry {
+        self.source = AnyLogSource(source)
 
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty else {
-            self.indexes = Array(0..<source.numberOfLogLines)
+            self.indexes = Array(0..<source.numberOfLines)
             return
         }
 
         var matchingIndexes: [Int] = []
-        for index in 0..<source.numberOfLogLines {
-            if source.logLine(at: index).text.localizedStandardContains(trimmedQuery) {
+        for index in 0..<source.numberOfLines {
+            if source.line(at: index).text.localizedStandardContains(trimmedQuery) {
                 matchingIndexes.append(index)
             }
         }
         self.indexes = matchingIndexes
     }
 
-    var numberOfLogLines: Int {
+    var numberOfLines: Int {
         indexes.count
     }
 
-    func logLine(at index: Int) -> PreviewLogEntry {
-        source.logLine(at: indexes[index])
+    func line(at index: Int) -> PreviewLogEntry {
+        source.line(at: indexes[index])
     }
 }
 
