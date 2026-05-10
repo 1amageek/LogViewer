@@ -127,11 +127,11 @@ private struct PreviewWrappingLogRow: View {
 
 @MainActor
 private final class PreviewFilteredLogLineSource: LogLineSource {
-    private let source: any LogLineSource
+    private let source: AnyLogLineSource<LogLine>
     private let indexes: [Int]
 
-    init(source: any LogLineSource, query: String) {
-        self.source = source
+    init<Source: LogLineSource>(source: Source, query: String) where Source.Line == LogLine {
+        self.source = AnyLogLineSource(source)
 
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty else {

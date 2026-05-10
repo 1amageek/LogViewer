@@ -2,15 +2,53 @@ import AppKit
 import SwiftUI
 
 @MainActor
-public protocol LogLineSource: AnyObject {
+public protocol LogLineSource<Line>: AnyObject {
+    associatedtype Line: Identifiable
+
     var numberOfLogLines: Int { get }
-    func logLine(at index: Int) -> LogLine
+    func logLine(at index: Int) -> Line
 }
 
-public final class ArrayLogLineSource: LogLineSource {
-    private let lines: [LogLine]
+public final class AnyLogLineSource<Line: Identifiable>: LogLineSource {
+    private let countProvider: () -> Int
+    private let lineProvider: (Int) -> Line
 
-    public init(_ lines: [LogLine]) {
+    public init<Source: LogLineSource>(_ source: Source) where Source.Line == Line {
+        self.countProvider = { source.numberOfLogLines }
+        self.lineProvider = { source.logLine(at: $0) }
+    }
+
+    public var numberOfLogLines: Int {
+        countProvider()
+    }
+
+    public func logLine(at index: Int) -> Line {
+        lineProvider(index)
+    }
+}
+
+public final class CollectionLogLineSource<Data: RandomAccessCollection>: LogLineSource where Data.Element: Identifiable {
+    public typealias Line = Data.Element
+
+    private let data: Data
+
+    public init(_ data: Data) {
+        self.data = data
+    }
+
+    public var numberOfLogLines: Int {
+        data.count
+    }
+
+    public func logLine(at index: Int) -> Line {
+        data[data.index(data.startIndex, offsetBy: index)]
+    }
+}
+
+public final class ArrayLogLineSource<Line: Identifiable>: LogLineSource {
+    private let lines: [Line]
+
+    public init(_ lines: [Line]) {
         self.lines = lines
     }
 
@@ -18,37 +56,43 @@ public final class ArrayLogLineSource: LogLineSource {
         lines.count
     }
 
-    public func logLine(at index: Int) -> LogLine {
+    public func logLine(at index: Int) -> Line {
         lines[index]
     }
 }
 
-public final class EmptyLogLineSource: LogLineSource {
-    public static let shared = EmptyLogLineSource()
+public final class EmptyLogLineSource<Line: Identifiable>: LogLineSource {
+    public init() {}
 
-    private init() {}
+    public convenience init(_ lineType: Line.Type) {
+        self.init()
+    }
 
     public var numberOfLogLines: Int {
         0
     }
 
-    public func logLine(at index: Int) -> LogLine {
+    public func logLine(at index: Int) -> Line {
         preconditionFailure("Empty log source has no line at index \(index).")
     }
 }
 
-public final class CompositeLogLineSource: LogLineSource {
-    private let sources: [any LogLineSource]
+public final class CompositeLogLineSource<Line: Identifiable>: LogLineSource {
+    private let sources: [AnyLogLineSource<Line>]
 
-    public init(_ sources: [any LogLineSource]) {
+    public init(_ sources: [AnyLogLineSource<Line>]) {
         self.sources = sources
+    }
+
+    public convenience init<Sources: Sequence>(_ sources: Sources) where Sources.Element: LogLineSource, Sources.Element.Line == Line {
+        self.init(sources.map { AnyLogLineSource($0) })
     }
 
     public var numberOfLogLines: Int {
         sources.reduce(0) { $0 + $1.numberOfLogLines }
     }
 
-    public func logLine(at index: Int) -> LogLine {
+    public func logLine(at index: Int) -> Line {
         var remainingIndex = index
         for source in sources {
             let count = source.numberOfLogLines
@@ -85,25 +129,42 @@ public struct LogTextInsets: Sendable {
     }
 }
 
-public struct Logs<RowContent: View>: View {
+public struct Logs<Line: Identifiable, RowContent: View>: View {
     private var hostConfiguration = HostConfiguration()
-    private let source: any LogLineSource
-    private let rowContent: (LogLine) -> RowContent
+    private let source: AnyLogLineSource<Line>
+    private let text: (Line) -> String
+    private let rowContent: (Line) -> RowContent
 
-    public init(
-        source: any LogLineSource,
-        @ViewBuilder rowContent: @escaping (LogLine) -> RowContent
-    ) {
-        self.source = source
+    public init<Source: LogLineSource>(
+        source: Source,
+        text: KeyPath<Line, String>,
+        @ViewBuilder rowContent: @escaping (Line) -> RowContent
+    ) where Source.Line == Line {
+        self.source = AnyLogLineSource(source)
+        self.text = { $0[keyPath: text] }
         self.rowContent = rowContent
     }
 
+    public init<Data: RandomAccessCollection>(
+        _ data: Data,
+        text: KeyPath<Line, String>,
+        @ViewBuilder rowContent: @escaping (Line) -> RowContent
+    ) where Data.Element == Line {
+        self.init(
+            source: CollectionLogLineSource(data),
+            text: text,
+            rowContent: rowContent
+        )
+    }
+
     public init(
-        lines: [LogLine],
-        @ViewBuilder rowContent: @escaping (LogLine) -> RowContent
+        lines: [Line],
+        text: KeyPath<Line, String>,
+        @ViewBuilder rowContent: @escaping (Line) -> RowContent
     ) {
         self.init(
             source: ArrayLogLineSource(lines),
+            text: text,
             rowContent: rowContent
         )
     }
@@ -111,6 +172,7 @@ public struct Logs<RowContent: View>: View {
     public var body: some View {
         VirtualLogHostingScrollView(
             source: source,
+            text: text,
             hostConfiguration: hostConfiguration,
             rowContent: rowContent
         )
@@ -141,17 +203,64 @@ public struct Logs<RowContent: View>: View {
 }
 
 public extension Logs where RowContent == LogRow {
-    init(source: any LogLineSource) {
-        self.init(source: source) { line in
-            LogRow(line: line)
+    init<Source: LogLineSource>(
+        source: Source,
+        text: KeyPath<Line, String>
+    ) where Source.Line == Line {
+        self.init(source: source, text: text) { line in
+            LogRow(text: line[keyPath: text])
         }
         hostConfiguration.textInsets = LogRow.textInsets
         hostConfiguration.wrapping = .wrap
         hostConfiguration.backgroundColor = .xcodeLogBackground
     }
 
+    init<Data: RandomAccessCollection>(
+        _ data: Data,
+        text: KeyPath<Line, String>
+    ) where Data.Element == Line {
+        self.init(source: CollectionLogLineSource(data), text: text)
+    }
+
+    init(lines: [Line], text: KeyPath<Line, String>) {
+        self.init(source: ArrayLogLineSource(lines), text: text)
+    }
+}
+
+public extension Logs where Line == LogLine, RowContent == LogRow {
+    init<Source: LogLineSource>(source: Source) where Source.Line == LogLine {
+        self.init(source: source, text: \.text)
+    }
+
+    init<Data: RandomAccessCollection>(_ data: Data) where Data.Element == LogLine {
+        self.init(data, text: \.text)
+    }
+
     init(lines: [LogLine]) {
-        self.init(source: ArrayLogLineSource(lines))
+        self.init(source: ArrayLogLineSource(lines), text: \.text)
+    }
+}
+
+public extension Logs where Line == LogLine {
+    init<Source: LogLineSource>(
+        source: Source,
+        @ViewBuilder rowContent: @escaping (LogLine) -> RowContent
+    ) where Source.Line == LogLine {
+        self.init(source: source, text: \.text, rowContent: rowContent)
+    }
+
+    init<Data: RandomAccessCollection>(
+        _ data: Data,
+        @ViewBuilder rowContent: @escaping (LogLine) -> RowContent
+    ) where Data.Element == LogLine {
+        self.init(data, text: \.text, rowContent: rowContent)
+    }
+
+    init(
+        lines: [LogLine],
+        @ViewBuilder rowContent: @escaping (LogLine) -> RowContent
+    ) {
+        self.init(source: ArrayLogLineSource(lines), text: \.text, rowContent: rowContent)
     }
 }
 
@@ -179,10 +288,11 @@ private extension NSColor {
     )
 }
 
-private struct VirtualLogHostingScrollView<RowContent: View>: NSViewRepresentable {
-    let source: any LogLineSource
+private struct VirtualLogHostingScrollView<Line: Identifiable, RowContent: View>: NSViewRepresentable {
+    let source: AnyLogLineSource<Line>
+    let text: (Line) -> String
     let hostConfiguration: HostConfiguration
-    let rowContent: (LogLine) -> RowContent
+    let rowContent: (Line) -> RowContent
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
@@ -194,9 +304,10 @@ private struct VirtualLogHostingScrollView<RowContent: View>: NSViewRepresentabl
         scrollView.borderType = .noBorder
         scrollView.contentView.postsBoundsChangedNotifications = true
 
-        let documentView = VirtualLogHostingDocumentView<RowContent>()
+        let documentView = VirtualLogHostingDocumentView<Line, RowContent>()
         documentView.configure(
             source: source,
+            text: text,
             hostConfiguration: hostConfiguration,
             viewportSize: scrollView.contentSize,
             rowContent: rowContent
@@ -216,6 +327,7 @@ private struct VirtualLogHostingScrollView<RowContent: View>: NSViewRepresentabl
         scrollView.backgroundColor = hostConfiguration.backgroundColor
         documentView.configure(
             source: source,
+            text: text,
             hostConfiguration: hostConfiguration,
             viewportSize: scrollView.contentSize,
             rowContent: rowContent
@@ -235,7 +347,7 @@ private struct VirtualLogHostingScrollView<RowContent: View>: NSViewRepresentabl
 
     @MainActor
     final class Coordinator: NSObject {
-        weak var documentView: VirtualLogHostingDocumentView<RowContent>?
+        weak var documentView: VirtualLogHostingDocumentView<Line, RowContent>?
         weak var scrollView: NSScrollView?
 
         private let hostConfiguration = HostConfiguration()
@@ -296,10 +408,11 @@ private struct TextSelection {
     }
 }
 
-private final class VirtualLogHostingDocumentView<RowContent: View>: NSView {
-    private weak var source: (any LogLineSource)?
+private final class VirtualLogHostingDocumentView<Line: Identifiable, RowContent: View>: NSView {
+    private var source: AnyLogLineSource<Line>?
+    private var text: ((Line) -> String)?
     private var hostConfiguration = HostConfiguration()
-    private var rowContent: ((LogLine) -> RowContent)?
+    private var rowContent: ((Line) -> RowContent)?
     private var hostedRows: [Int: LogRowHostingView<RowContent>] = [:]
     private var selectionOverlays: [Int: SelectionOverlayView] = [:]
     private var textSelection: TextSelection?
@@ -329,12 +442,14 @@ private final class VirtualLogHostingDocumentView<RowContent: View>: NSView {
     }
 
     func configure(
-        source: any LogLineSource,
+        source: AnyLogLineSource<Line>,
+        text: @escaping (Line) -> String,
         hostConfiguration: HostConfiguration,
         viewportSize: NSSize,
-        rowContent: @escaping (LogLine) -> RowContent
+        rowContent: @escaping (Line) -> RowContent
     ) {
         self.source = source
+        self.text = text
         self.hostConfiguration = hostConfiguration
         self.rowContent = rowContent
         layer?.backgroundColor = hostConfiguration.backgroundColor.cgColor
@@ -416,7 +531,12 @@ private final class VirtualLogHostingDocumentView<RowContent: View>: NSView {
     override func selectAll(_ sender: Any?) {
         guard displayCount > 0 else { return }
         let lastRow = displayCount - 1
-        let lastColumn = source?.logLine(at: lastRow).text.count ?? 0
+        let lastColumn: Int
+        if let source, let text {
+            lastColumn = text(source.logLine(at: lastRow)).count
+        } else {
+            lastColumn = 0
+        }
         textSelection = TextSelection(
             anchor: SelectionPosition(row: 0, column: 0),
             focus: SelectionPosition(row: lastRow, column: lastColumn)
@@ -488,8 +608,9 @@ private final class VirtualLogHostingDocumentView<RowContent: View>: NSView {
     }
 
     private func columnIndex(forX x: CGFloat, localY: CGFloat, row: Int) -> Int {
-        guard let source else { return 0 }
+        guard let source, let text else { return 0 }
         let line = source.logLine(at: row)
+        let lineText = text(line)
         let characterWidth = max(hostConfiguration.selectionCharacterWidth, 1)
         let relativeX = max(0, x - hostConfiguration.textInsets.leading)
         let visualColumn = Int((relativeX / characterWidth).rounded(.down))
@@ -505,7 +626,7 @@ private final class VirtualLogHostingDocumentView<RowContent: View>: NSView {
             columnsPerVisualLine = wrappedColumnsPerVisualLine(contentWidth: bounds.width)
         }
         let column = visualLine * columnsPerVisualLine + visualColumn
-        return min(max(column, 0), line.text.count)
+        return min(max(column, 0), lineText.count)
     }
 
     private func clearSelection() {
@@ -558,9 +679,9 @@ private final class VirtualLogHostingDocumentView<RowContent: View>: NSView {
     }
 
     private func clampedPosition(_ position: SelectionPosition, rowCount: Int) -> SelectionPosition {
-        guard rowCount > 0, let source else { return SelectionPosition(row: 0, column: 0) }
+        guard rowCount > 0, let source, let text else { return SelectionPosition(row: 0, column: 0) }
         let row = min(max(position.row, 0), rowCount - 1)
-        let column = min(max(position.column, 0), source.logLine(at: row).text.count)
+        let column = min(max(position.column, 0), text(source.logLine(at: row)).count)
         return SelectionPosition(row: row, column: column)
     }
 
@@ -573,9 +694,9 @@ private final class VirtualLogHostingDocumentView<RowContent: View>: NSView {
     }
 
     private func selectionRects(for row: Int, rowFrame: NSRect) -> [NSRect] {
-        guard let source, let textSelection else { return [] }
+        guard let source, let text, let textSelection else { return [] }
         let normalized = textSelection.normalized
-        let lineLength = source.logLine(at: row).text.count
+        let lineLength = text(source.logLine(at: row)).count
 
         let lowerColumn: Int
         let upperColumn: Int
@@ -653,33 +774,34 @@ private final class VirtualLogHostingDocumentView<RowContent: View>: NSView {
 
     private func selectedText(
         for textSelection: TextSelection,
-        source: any LogLineSource
+        source: AnyLogLineSource<Line>
     ) -> String {
+        guard let textProvider = text else { return "" }
         let normalized = textSelection.normalized
         if normalized.lower == normalized.upper {
             return ""
         }
 
         if normalized.lower.row == normalized.upper.row {
-            let text = source.logLine(at: normalized.lower.row).text
+            let lineText = textProvider(source.logLine(at: normalized.lower.row))
             return substring(
-                text,
+                lineText,
                 from: normalized.lower.column,
                 to: normalized.upper.column
             )
         }
 
         var lines: [String] = []
-        let firstText = source.logLine(at: normalized.lower.row).text
+        let firstText = textProvider(source.logLine(at: normalized.lower.row))
         lines.append(substring(firstText, from: normalized.lower.column, to: firstText.count))
 
         if normalized.upper.row > normalized.lower.row + 1 {
             for row in (normalized.lower.row + 1)..<normalized.upper.row {
-                lines.append(source.logLine(at: row).text)
+                lines.append(textProvider(source.logLine(at: row)))
             }
         }
 
-        let lastText = source.logLine(at: normalized.upper.row).text
+        let lastText = textProvider(source.logLine(at: normalized.upper.row))
         lines.append(substring(lastText, from: 0, to: normalized.upper.column))
         return lines.joined(separator: "\n")
     }
@@ -721,7 +843,7 @@ private final class VirtualLogHostingDocumentView<RowContent: View>: NSView {
     }
 
     private func rebuildRowMetricsIfNeeded(viewportSize: NSSize) {
-        guard let source else {
+        guard let source, let text else {
             rowHeights.removeAll(keepingCapacity: false)
             rowOffsets.removeAll(keepingCapacity: false)
             cachedRowMetricsCount = 0
@@ -759,7 +881,7 @@ private final class VirtualLogHostingDocumentView<RowContent: View>: NSView {
         var offset: CGFloat = 0
         for index in 0..<count {
             let line = source.logLine(at: index)
-            let height = wrappedRowHeight(for: line.text, contentWidth: width)
+            let height = wrappedRowHeight(for: text(line), contentWidth: width)
             nextOffsets.append(offset)
             nextHeights.append(height)
             offset += height

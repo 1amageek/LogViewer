@@ -1,6 +1,6 @@
 # LogViewer
 
-LogViewer is a SwiftUI log viewing package for macOS. It provides a virtualized log surface with selectable text, copy support, wrapping, and customizable row rendering.
+LogViewer is a SwiftUI log viewing package for macOS. It provides a generic virtualized log surface with selectable text, copy support, wrapping, and customizable row rendering.
 
 The default view is designed for dense runtime logs and uses Xcode-like background bands for different log levels.
 
@@ -49,6 +49,17 @@ struct ContentView: View {
 }
 ```
 
+`LogLine` is only a convenience model. `Logs` can render any `Identifiable` element when you provide the key path for the displayed text.
+
+```swift
+struct RuntimeEntry: Identifiable {
+    let id: UUID
+    let message: String
+}
+
+Logs(entries, text: \.message)
+```
+
 ## Source-Based Logs
 
 Use `LogLineSource` when the log storage should own loading, filtering, or live updates.
@@ -56,24 +67,24 @@ Use `LogLineSource` when the log storage should own loading, filtering, or live 
 ```swift
 @MainActor
 final class RuntimeLogSource: LogLineSource {
-    private var lines: [LogLine] = []
+    private var entries: [RuntimeEntry] = []
 
     var numberOfLogLines: Int {
-        lines.count
+        entries.count
     }
 
-    func logLine(at index: Int) -> LogLine {
-        lines[index]
+    func logLine(at index: Int) -> RuntimeEntry {
+        entries[index]
     }
 
-    func replace(with nextLines: [LogLine]) {
-        lines = nextLines
+    func replace(with nextEntries: [RuntimeEntry]) {
+        entries = nextEntries
     }
 }
 ```
 
 ```swift
-Logs(source: source)
+Logs(source: source, text: \.message)
 ```
 
 ## Custom Rows
@@ -81,8 +92,8 @@ Logs(source: source)
 `Logs` owns virtualization, scrolling, selection, and copy behavior. The row builder owns visual styling.
 
 ```swift
-Logs(source: source) { line in
-    Text(line.text)
+Logs(source: source, text: \.message) { entry in
+    Text(entry.message)
         .font(.system(size: 11, design: .monospaced))
         .foregroundStyle(.primary)
         .padding(12)
@@ -94,8 +105,8 @@ Logs(source: source) { line in
 Use `logTextInsets(_:)` when the rendered text has asymmetric padding:
 
 ```swift
-Logs(source: source) { line in
-    Text(line.text)
+Logs(source: source, text: \.message) { entry in
+    Text(entry.message)
         .font(.system(size: 11, design: .monospaced))
         .padding(.leading, 16)
         .padding(.trailing, 12)
@@ -117,15 +128,15 @@ Logs(source: source) { line in
 Wrapping is enabled by default.
 
 ```swift
-Logs(source: source)
+Logs(source: source, text: \.message)
     .logLineWrapping(.wrap)
 ```
 
 Use horizontal scrolling for single-line log views:
 
 ```swift
-Logs(source: source) { line in
-    Text(line.text)
+Logs(source: source, text: \.message) { entry in
+    Text(entry.message)
         .font(.system(size: 11, design: .monospaced))
         .lineLimit(1)
 }
@@ -139,11 +150,11 @@ Filtering belongs in the source, not the view. This keeps the viewer focused on 
 ```swift
 @MainActor
 final class FilteredLogLineSource: LogLineSource {
-    private let source: any LogLineSource
+    private let source: AnyLogLineSource<RuntimeEntry>
     private let indexes: [Int]
 
-    init(source: any LogLineSource, query: String) {
-        self.source = source
+    init<Source: LogLineSource>(source: Source, query: String) where Source.Line == RuntimeEntry {
+        self.source = AnyLogLineSource(source)
 
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty else {
@@ -153,7 +164,7 @@ final class FilteredLogLineSource: LogLineSource {
 
         var matchingIndexes: [Int] = []
         for index in 0..<source.numberOfLogLines {
-            if source.logLine(at: index).text.localizedStandardContains(trimmedQuery) {
+            if source.logLine(at: index).message.localizedStandardContains(trimmedQuery) {
                 matchingIndexes.append(index)
             }
         }
@@ -164,7 +175,7 @@ final class FilteredLogLineSource: LogLineSource {
         indexes.count
     }
 
-    func logLine(at index: Int) -> LogLine {
+    func logLine(at index: Int) -> RuntimeEntry {
         source.logLine(at: indexes[index])
     }
 }
