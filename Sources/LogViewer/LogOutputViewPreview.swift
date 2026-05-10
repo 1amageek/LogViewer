@@ -1,12 +1,12 @@
 import SwiftUI
 
 #Preview("Log Output") {
-    Logs(lines: previewLines)
+    Logs(lines: previewLines, text: \.text)
     .frame(width: 420, height: 320)
 }
 
 #Preview("Compact Rounded") {
-    Logs(lines: previewLines) { line in
+    Logs(lines: previewLines, text: \.text) { line in
         PreviewLogRow(line: line)
             .padding(.horizontal, 8)
             .background(backgroundColor(for: line), in: RoundedRectangle(cornerRadius: 4))
@@ -17,7 +17,7 @@ import SwiftUI
 }
 
 #Preview("Long Lines") {
-    Logs(lines: longPreviewLines) { line in
+    Logs(lines: longPreviewLines, text: \.text) { line in
         PreviewLogRow(line: line)
             .padding(.horizontal, 12)
             .background(backgroundColor(for: line))
@@ -28,7 +28,7 @@ import SwiftUI
 }
 
 #Preview("Long Lines Wrapped") {
-    Logs(lines: longPreviewLines) { line in
+    Logs(lines: longPreviewLines, text: \.text) { line in
         PreviewWrappingLogRow(line: line)
             .padding(12)
             .background(backgroundColor(for: line))
@@ -43,7 +43,8 @@ import SwiftUI
         source: PreviewFilteredLogLineSource(
             source: ArrayLogLineSource(previewLines),
             query: "warning"
-        )
+        ),
+        text: \.text
     ) { line in
         PreviewLogRow(line: line)
             .padding(.horizontal, 8)
@@ -59,7 +60,8 @@ import SwiftUI
         source: PreviewFilteredLogLineSource(
             source: ArrayLogLineSource(previewLines),
             query: "missing"
-        )
+        ),
+        text: \.text
     ) { line in
         PreviewLogRow(line: line)
             .padding(.horizontal, 8)
@@ -71,39 +73,44 @@ import SwiftUI
 }
 
 #Preview("Empty") {
-    Logs(lines: [])
+    Logs(lines: [PreviewLogEntry](), text: \.text)
     .frame(width: 420, height: 320)
 }
 
-private let previewLines: [LogLine] = [
-    LogLine(id: "preview:0", text: "2026-05-10T21:55:00Z [service][info] Starting local runtime"),
-    LogLine(id: "preview:1", text: "2026-05-10T21:55:01Z [service][debug] Preparing request headers"),
-    LogLine(id: "preview:2", text: "2026-05-10T21:55:02Z [service][warning] Response took longer than expected"),
-    LogLine(id: "preview:3", text: "2026-05-10T21:55:03Z [service][error] Upstream returned status 500"),
-    LogLine(id: "preview:4", text: "2026-05-10T21:55:04Z [service][info] Runtime stopped")
+private let previewLines: [PreviewLogEntry] = [
+    PreviewLogEntry(id: "preview:0", text: "2026-05-10T21:55:00Z [service][info] Starting local runtime"),
+    PreviewLogEntry(id: "preview:1", text: "2026-05-10T21:55:01Z [service][debug] Preparing request headers"),
+    PreviewLogEntry(id: "preview:2", text: "2026-05-10T21:55:02Z [service][warning] Response took longer than expected"),
+    PreviewLogEntry(id: "preview:3", text: "2026-05-10T21:55:03Z [service][error] Upstream returned status 500"),
+    PreviewLogEntry(id: "preview:4", text: "2026-05-10T21:55:04Z [service][info] Runtime stopped")
 ]
 
-private let longPreviewLines: [LogLine] = [
-    LogLine(
+private let longPreviewLines: [PreviewLogEntry] = [
+    PreviewLogEntry(
         id: "long:0",
         text: "2026-05-10T21:55:00.123Z [runtime][info] requestID=8C0F6D42-B45A-48B2-9C4A-4C45119F0E23 service=api-gateway route=/v1/workspaces/agents-in-black/repositories/1amageek/agents-in-black/branches/main method=POST status=200 durationMs=184 contentLength=48392 userAgent=AgentsInBlackPreview/1.0"
     ),
-    LogLine(
+    PreviewLogEntry(
         id: "long:1",
         text: "2026-05-10T21:55:01.456Z [service][debug] command=/usr/bin/env SWIFT_DETERMINISTIC_HASHING=1 swift build --package-path /Users/1amageek/Desktop/agents-in-black --configuration debug --scratch-path /Users/1amageek/Library/Developer/Xcode/DerivedData/AgentsInBlack-gmisxtgtgdoqpbbrjxqngogdggvj/SourcePackages/checkouts"
     ),
-    LogLine(
+    PreviewLogEntry(
         id: "long:2",
         text: "2026-05-10T21:55:02.789Z [service][warning] slow-log-line robotID=quadref-v0 suite=KUY-LIFT-1 task=Lift template=aerial-drone-autonomy-starter-v1 modelDescriptor=/Users/1amageek/Library/Developer/Xcode/DerivedData/Bounded-gtjduvjaezkwdrappiamyjwosglmu/Build/Products/Debug/KuyuUI.app/Contents/Resources/Models/QuadRef/quadref.model.json"
     ),
-    LogLine(
+    PreviewLogEntry(
         id: "long:3",
         text: "2026-05-10T21:55:03.012Z [service][error] upstream returned invalid response traceID=3d8c5d94c0cc4b8da8a367b8c66a9e0e spanID=bcda610f1e664df4 retryCount=3 payload={\"error\":{\"code\":\"model_context_length_exceeded\",\"message\":\"The request exceeded the maximum supported context length for this runtime.\"},\"status\":500}"
     )
 ]
 
+private struct PreviewLogEntry: Identifiable {
+    let id: String
+    let text: String
+}
+
 private struct PreviewLogRow: View {
-    let line: LogLine
+    let line: PreviewLogEntry
 
     var body: some View {
         Text(line.text)
@@ -115,7 +122,7 @@ private struct PreviewLogRow: View {
 }
 
 private struct PreviewWrappingLogRow: View {
-    let line: LogLine
+    let line: PreviewLogEntry
 
     var body: some View {
         Text(line.text)
@@ -127,10 +134,10 @@ private struct PreviewWrappingLogRow: View {
 
 @MainActor
 private final class PreviewFilteredLogLineSource: LogLineSource {
-    private let source: AnyLogLineSource<LogLine>
+    private let source: AnyLogLineSource<PreviewLogEntry>
     private let indexes: [Int]
 
-    init<Source: LogLineSource>(source: Source, query: String) where Source.Line == LogLine {
+    init<Source: LogLineSource>(source: Source, query: String) where Source.Line == PreviewLogEntry {
         self.source = AnyLogLineSource(source)
 
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -152,12 +159,12 @@ private final class PreviewFilteredLogLineSource: LogLineSource {
         indexes.count
     }
 
-    func logLine(at index: Int) -> LogLine {
+    func logLine(at index: Int) -> PreviewLogEntry {
         source.logLine(at: indexes[index])
     }
 }
 
-private func backgroundColor(for line: LogLine) -> Color {
+private func backgroundColor(for line: PreviewLogEntry) -> Color {
     let lowercased = line.text.lowercased()
     if lowercased.contains("[error]") {
         return .red.opacity(0.20)

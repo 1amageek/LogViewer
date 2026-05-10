@@ -37,27 +37,21 @@ import LogViewer
 import SwiftUI
 
 struct ContentView: View {
-    private let lines = [
-        LogLine(id: "0", text: "2026-05-10T21:55:00Z [runtime][info] service started"),
-        LogLine(id: "1", text: "2026-05-10T21:55:01Z [runtime][warning] slow response"),
-        LogLine(id: "2", text: "2026-05-10T21:55:02Z [runtime][error] upstream failed")
+    private let entries = [
+        RuntimeEntry(id: "0", message: "2026-05-10T21:55:00Z [runtime][info] service started"),
+        RuntimeEntry(id: "1", message: "2026-05-10T21:55:01Z [runtime][warning] slow response"),
+        RuntimeEntry(id: "2", message: "2026-05-10T21:55:02Z [runtime][error] upstream failed")
     ]
 
     var body: some View {
-        Logs(lines: lines)
+        Logs(entries, text: \.message)
     }
 }
-```
 
-`LogLine` is only a convenience model. `Logs` can render any `Identifiable` element when you provide the key path for the displayed text.
-
-```swift
 struct RuntimeEntry: Identifiable {
-    let id: UUID
+    let id: String
     let message: String
 }
-
-Logs(entries, text: \.message)
 ```
 
 ## Source-Based Logs

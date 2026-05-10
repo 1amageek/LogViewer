@@ -227,43 +227,6 @@ public extension Logs where RowContent == LogRow {
     }
 }
 
-public extension Logs where Line == LogLine, RowContent == LogRow {
-    init<Source: LogLineSource>(source: Source) where Source.Line == LogLine {
-        self.init(source: source, text: \.text)
-    }
-
-    init<Data: RandomAccessCollection>(_ data: Data) where Data.Element == LogLine {
-        self.init(data, text: \.text)
-    }
-
-    init(lines: [LogLine]) {
-        self.init(source: ArrayLogLineSource(lines), text: \.text)
-    }
-}
-
-public extension Logs where Line == LogLine {
-    init<Source: LogLineSource>(
-        source: Source,
-        @ViewBuilder rowContent: @escaping (LogLine) -> RowContent
-    ) where Source.Line == LogLine {
-        self.init(source: source, text: \.text, rowContent: rowContent)
-    }
-
-    init<Data: RandomAccessCollection>(
-        _ data: Data,
-        @ViewBuilder rowContent: @escaping (LogLine) -> RowContent
-    ) where Data.Element == LogLine {
-        self.init(data, text: \.text, rowContent: rowContent)
-    }
-
-    init(
-        lines: [LogLine],
-        @ViewBuilder rowContent: @escaping (LogLine) -> RowContent
-    ) {
-        self.init(source: ArrayLogLineSource(lines), text: \.text, rowContent: rowContent)
-    }
-}
-
 private struct HostConfiguration {
     let rowHeight: CGFloat = 24
     let wrappedLineHeight: CGFloat = 17
