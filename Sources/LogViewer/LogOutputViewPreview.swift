@@ -1,12 +1,12 @@
 import SwiftUI
 
 #Preview("Log Output") {
-    Logs(lines: previewLines, text: \.text)
+    Logs(lines: previewLines)
     .frame(width: 420, height: 320)
 }
 
 #Preview("Compact Rounded") {
-    Logs(lines: previewLines, text: \.text) { line in
+    Logs(lines: previewLines) { line in
         PreviewLogRow(line: line)
             .padding(.horizontal, 8)
             .background(backgroundColor(for: line), in: RoundedRectangle(cornerRadius: 4))
@@ -17,7 +17,7 @@ import SwiftUI
 }
 
 #Preview("Long Lines") {
-    Logs(lines: longPreviewLines, text: \.text) { line in
+    Logs(lines: longPreviewLines) { line in
         PreviewLogRow(line: line)
             .padding(.horizontal, 12)
             .background(backgroundColor(for: line))
@@ -28,7 +28,7 @@ import SwiftUI
 }
 
 #Preview("Long Lines Wrapped") {
-    Logs(lines: longPreviewLines, text: \.text) { line in
+    Logs(lines: longPreviewLines) { line in
         PreviewWrappingLogRow(line: line)
             .padding(12)
             .background(backgroundColor(for: line))
@@ -43,8 +43,7 @@ import SwiftUI
         source: PreviewFilteredLogSource(
             source: ArrayLogSource(previewLines),
             query: "warning"
-        ),
-        text: \.text
+        )
     ) { line in
         PreviewLogRow(line: line)
             .padding(.horizontal, 8)
@@ -60,8 +59,7 @@ import SwiftUI
         source: PreviewFilteredLogSource(
             source: ArrayLogSource(previewLines),
             query: "missing"
-        ),
-        text: \.text
+        )
     ) { line in
         PreviewLogRow(line: line)
             .padding(.horizontal, 8)
@@ -73,7 +71,7 @@ import SwiftUI
 }
 
 #Preview("Empty") {
-    Logs(lines: [PreviewLogEntry](), text: \.text)
+    Logs(lines: [PreviewLogEntry]())
     .frame(width: 420, height: 320)
 }
 
@@ -104,9 +102,13 @@ private let longPreviewLines: [PreviewLogEntry] = [
     )
 ]
 
-private struct PreviewLogEntry: Identifiable {
+private struct PreviewLogEntry: Identifiable, CustomStringConvertible {
     let id: String
     let text: String
+
+    var description: String {
+        text
+    }
 }
 
 private struct PreviewLogRow: View {

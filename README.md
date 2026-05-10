@@ -44,13 +44,17 @@ struct ContentView: View {
     ]
 
     var body: some View {
-        Logs(entries, text: \.message)
+        Logs(entries)
     }
 }
 
-struct RuntimeEntry: Identifiable {
+struct RuntimeEntry: Identifiable, CustomStringConvertible {
     let id: String
     let message: String
+
+    var description: String {
+        message
+    }
 }
 ```
 
@@ -78,6 +82,12 @@ final class RuntimeLogSource: LogSource {
 ```
 
 ```swift
+Logs(source: source)
+```
+
+`Logs` uses `description` as the selectable and copyable text when the line type conforms to `CustomStringConvertible`. If the model should not use `description`, pass an explicit text key path.
+
+```swift
 Logs(source: source, text: \.message)
 ```
 
@@ -86,7 +96,7 @@ Logs(source: source, text: \.message)
 `Logs` owns virtualization, scrolling, selection, and copy behavior. The row builder owns visual styling.
 
 ```swift
-Logs(source: source, text: \.message) { entry in
+Logs(source: source) { entry in
     Text(entry.message)
         .font(.system(size: 11, design: .monospaced))
         .foregroundStyle(.primary)
@@ -99,7 +109,7 @@ Logs(source: source, text: \.message) { entry in
 Use `logTextInsets(_:)` when the rendered text has asymmetric padding:
 
 ```swift
-Logs(source: source, text: \.message) { entry in
+Logs(source: source) { entry in
     Text(entry.message)
         .font(.system(size: 11, design: .monospaced))
         .padding(.leading, 16)
@@ -122,14 +132,14 @@ Logs(source: source, text: \.message) { entry in
 Wrapping is enabled by default.
 
 ```swift
-Logs(source: source, text: \.message)
+Logs(source: source)
     .logWrapping(.wrap)
 ```
 
 Use horizontal scrolling for single-line log views:
 
 ```swift
-Logs(source: source, text: \.message) { entry in
+Logs(source: source) { entry in
     Text(entry.message)
         .font(.system(size: 11, design: .monospaced))
         .lineLimit(1)

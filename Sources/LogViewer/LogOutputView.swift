@@ -145,6 +145,16 @@ public struct Logs<Line: Identifiable, RowContent: View>: View {
         self.rowContent = rowContent
     }
 
+    public init<Source: LogSource>(
+        source: Source,
+        text: @escaping (Line) -> String,
+        @ViewBuilder rowContent: @escaping (Line) -> RowContent
+    ) where Source.Line == Line {
+        self.source = AnyLogSource(source)
+        self.text = text
+        self.rowContent = rowContent
+    }
+
     public init<Data: RandomAccessCollection>(
         _ data: Data,
         text: KeyPath<Line, String>,
@@ -202,6 +212,35 @@ public struct Logs<Line: Identifiable, RowContent: View>: View {
     }
 }
 
+public extension Logs where Line: CustomStringConvertible {
+    init<Source: LogSource>(
+        source: Source,
+        @ViewBuilder rowContent: @escaping (Line) -> RowContent
+    ) where Source.Line == Line {
+        self.init(source: source, text: { $0.description }, rowContent: rowContent)
+    }
+
+    init<Data: RandomAccessCollection>(
+        _ data: Data,
+        @ViewBuilder rowContent: @escaping (Line) -> RowContent
+    ) where Data.Element == Line {
+        self.init(
+            source: CollectionLogSource(data),
+            rowContent: rowContent
+        )
+    }
+
+    init(
+        lines: [Line],
+        @ViewBuilder rowContent: @escaping (Line) -> RowContent
+    ) {
+        self.init(
+            source: ArrayLogSource(lines),
+            rowContent: rowContent
+        )
+    }
+}
+
 public extension Logs where RowContent == LogRow {
     init<Source: LogSource>(
         source: Source,
@@ -224,6 +263,25 @@ public extension Logs where RowContent == LogRow {
 
     init(lines: [Line], text: KeyPath<Line, String>) {
         self.init(source: ArrayLogSource(lines), text: text)
+    }
+}
+
+public extension Logs where Line: CustomStringConvertible, RowContent == LogRow {
+    init<Source: LogSource>(source: Source) where Source.Line == Line {
+        self.init(source: source, text: { $0.description }) { line in
+            LogRow(text: line.description)
+        }
+        hostConfiguration.textInsets = LogRow.textInsets
+        hostConfiguration.wrapping = .wrap
+        hostConfiguration.backgroundColor = .xcodeLogBackground
+    }
+
+    init<Data: RandomAccessCollection>(_ data: Data) where Data.Element == Line {
+        self.init(source: CollectionLogSource(data))
+    }
+
+    init(lines: [Line]) {
+        self.init(source: ArrayLogSource(lines))
     }
 }
 
