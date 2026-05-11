@@ -443,6 +443,7 @@ private final class VirtualLogHostingDocumentView<Line: Identifiable, RowContent
     private var cachedRowMetricsCount: Int = -1
     private var cachedWrapping: LogWrapping = .scroll
     private var cachedSourceIdentifier: ObjectIdentifier?
+    private var lastValidViewportSize: NSSize = .zero
 
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
@@ -469,6 +470,7 @@ private final class VirtualLogHostingDocumentView<Line: Identifiable, RowContent
         viewportSize: NSSize,
         rowContent: @escaping (Line) -> RowContent
     ) {
+        let resolvedViewportSize = stableViewportSize(from: viewportSize)
         self.source = source
         self.text = text
         self.hostConfiguration = hostConfiguration
@@ -476,14 +478,14 @@ private final class VirtualLogHostingDocumentView<Line: Identifiable, RowContent
         layer?.backgroundColor = hostConfiguration.backgroundColor.cgColor
 
         pruneSelection()
-        rebuildRowMetricsIfNeeded(viewportSize: viewportSize)
-        updateFrameSize(viewportSize: viewportSize)
+        rebuildRowMetricsIfNeeded(viewportSize: resolvedViewportSize)
+        updateFrameSize(viewportSize: resolvedViewportSize)
         updateVisibleRows()
     }
 
     override func viewDidMoveToSuperview() {
         super.viewDidMoveToSuperview()
-        let viewportSize = superview?.bounds.size ?? .zero
+        let viewportSize = stableViewportSize(from: superview?.bounds.size ?? .zero)
         rebuildRowMetricsIfNeeded(viewportSize: viewportSize)
         updateFrameSize(viewportSize: viewportSize)
         updateVisibleRows()
@@ -491,7 +493,7 @@ private final class VirtualLogHostingDocumentView<Line: Identifiable, RowContent
 
     override func layout() {
         super.layout()
-        let viewportSize = superview?.bounds.size ?? .zero
+        let viewportSize = stableViewportSize(from: superview?.bounds.size ?? .zero)
         rebuildRowMetricsIfNeeded(viewportSize: viewportSize)
         updateFrameSize(viewportSize: viewportSize)
         updateVisibleRows()
@@ -840,6 +842,21 @@ private final class VirtualLogHostingDocumentView<Line: Identifiable, RowContent
         let contentHeight = max(viewportSize.height, logContentHeight)
         let contentWidth = contentWidth(for: viewportSize)
         setFrameSize(NSSize(width: contentWidth, height: contentHeight))
+    }
+
+    private func stableViewportSize(from viewportSize: NSSize) -> NSSize {
+        guard viewportSize.width > 0, viewportSize.height > 0 else {
+            if lastValidViewportSize.width > 0, lastValidViewportSize.height > 0 {
+                return lastValidViewportSize
+            }
+            return NSSize(
+                width: max(viewportSize.width, 1),
+                height: max(viewportSize.height, 1)
+            )
+        }
+
+        lastValidViewportSize = viewportSize
+        return viewportSize
     }
 
     private var logContentHeight: CGFloat {
