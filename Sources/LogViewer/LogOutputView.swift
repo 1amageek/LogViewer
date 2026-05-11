@@ -917,10 +917,15 @@ private final class VirtualLogHostingDocumentView<Line: Identifiable, RowContent
     }
 
     private func visibleRowRange(dirtyRect: NSRect) -> Range<Int> {
+        let visibleRect = VirtualLogLayout.clampedVisibleRect(
+            dirtyRect,
+            contentHeight: logContentHeight
+        )
+
         switch hostConfiguration.wrapping {
         case .scroll:
             return VirtualLogLayout.visibleRowRange(
-                dirtyRect: dirtyRect,
+                dirtyRect: visibleRect,
                 rowHeight: hostConfiguration.rowHeight,
                 verticalPadding: 0,
                 rowCount: displayCount
@@ -933,8 +938,8 @@ private final class VirtualLogHostingDocumentView<Line: Identifiable, RowContent
                 return 0..<0
             }
 
-            let first = firstWrappedRowIntersecting(minY: dirtyRect.minY)
-            let last = firstWrappedRowStarting(atOrAfter: dirtyRect.maxY)
+            let first = firstWrappedRowIntersecting(minY: visibleRect.minY)
+            let last = firstWrappedRowStarting(atOrAfter: visibleRect.maxY)
             guard first < last else { return 0..<0 }
             return first..<last
         }
@@ -1064,6 +1069,21 @@ private final class SelectionOverlayView: NSView {
 }
 
 enum VirtualLogLayout {
+    static func clampedVisibleRect(_ visibleRect: NSRect, contentHeight: CGFloat) -> NSRect {
+        guard contentHeight > 0, visibleRect.height > 0 else {
+            return visibleRect
+        }
+
+        let maxOriginY = max(0, contentHeight - visibleRect.height)
+        let clampedOriginY = min(max(visibleRect.minY, 0), maxOriginY)
+        return NSRect(
+            x: visibleRect.minX,
+            y: clampedOriginY,
+            width: visibleRect.width,
+            height: visibleRect.height
+        )
+    }
+
     static func visibleRowRange(
         dirtyRect: NSRect,
         rowHeight: CGFloat,
