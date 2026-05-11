@@ -574,11 +574,12 @@ private final class VirtualLogHostingDocumentView<Line: Identifiable, RowContent
             return
         }
 
-        let visibleRect = enclosingScrollView?.contentView.bounds ?? bounds
+        let visibleRect = self.visibleRect
         let range = visibleRowRange(dirtyRect: visibleRect)
+        guard !range.isEmpty else { return }
 
         let visibleIndexes = Set(range)
-        for index in hostedRows.keys where !visibleIndexes.contains(index) {
+        for index in Array(hostedRows.keys) where !visibleIndexes.contains(index) {
             hostedRows.removeValue(forKey: index)?.removeFromSuperview()
         }
 
@@ -673,7 +674,7 @@ private final class VirtualLogHostingDocumentView<Line: Identifiable, RowContent
     private func updateSelectionOverlays(visibleRange: Range<Int>) {
         let visibleSelectedRows = selectedRowRange(visibleRange: visibleRange)
 
-        for index in selectionOverlays.keys where visibleSelectedRows?.contains(index) != true {
+        for index in Array(selectionOverlays.keys) where visibleSelectedRows?.contains(index) != true {
             selectionOverlays.removeValue(forKey: index)?.removeFromSuperview()
         }
 
