@@ -949,15 +949,13 @@ private final class VirtualLogHostingDocumentView<Line: Identifiable, RowContent
                 rowCount: displayCount
             )
         case .wrap:
-            guard displayCount > 0,
-                  rowOffsets.count == displayCount,
-                  rowHeights.count == displayCount
-            else {
+            let rowCount = wrappedMetricsRowCount
+            guard rowCount > 0 else {
                 return 0..<0
             }
 
-            let first = firstWrappedRowIntersecting(minY: visibleRect.minY)
-            let last = firstWrappedRowStarting(atOrAfter: visibleRect.maxY)
+            let first = firstWrappedRowIntersecting(minY: visibleRect.minY, rowCount: rowCount)
+            let last = firstWrappedRowStarting(atOrAfter: visibleRect.maxY, rowCount: rowCount)
             guard first < last else { return 0..<0 }
             return first..<last
         }
@@ -970,7 +968,9 @@ private final class VirtualLogHostingDocumentView<Line: Identifiable, RowContent
             let unclampedIndex = Int(floor(y / hostConfiguration.rowHeight))
             return min(max(unclampedIndex, 0), displayCount - 1)
         case .wrap:
-            return min(max(firstWrappedRowIntersecting(minY: y), 0), displayCount - 1)
+            let rowCount = wrappedMetricsRowCount
+            guard rowCount > 0 else { return 0 }
+            return min(max(firstWrappedRowIntersecting(minY: y, rowCount: rowCount), 0), rowCount - 1)
         }
     }
 
@@ -998,9 +998,13 @@ private final class VirtualLogHostingDocumentView<Line: Identifiable, RowContent
         }
     }
 
-    private func firstWrappedRowIntersecting(minY: CGFloat) -> Int {
+    private var wrappedMetricsRowCount: Int {
+        min(displayCount, rowOffsets.count, rowHeights.count)
+    }
+
+    private func firstWrappedRowIntersecting(minY: CGFloat, rowCount: Int) -> Int {
         var low = 0
-        var high = displayCount
+        var high = rowCount
 
         while low < high {
             let mid = (low + high) / 2
@@ -1013,9 +1017,9 @@ private final class VirtualLogHostingDocumentView<Line: Identifiable, RowContent
         return low
     }
 
-    private func firstWrappedRowStarting(atOrAfter maxY: CGFloat) -> Int {
+    private func firstWrappedRowStarting(atOrAfter maxY: CGFloat, rowCount: Int) -> Int {
         var low = 0
-        var high = displayCount
+        var high = rowCount
 
         while low < high {
             let mid = (low + high) / 2
