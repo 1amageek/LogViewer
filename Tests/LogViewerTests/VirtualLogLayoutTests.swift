@@ -107,4 +107,33 @@ struct VirtualLogLayoutTests {
 
         #expect(row == 3)
     }
+
+    @Test
+    func clampedVisibleRectClampsInfiniteHeightToContentHeight() {
+        let visibleRect = VirtualLogLayout.clampedVisibleRect(
+            .infinite,
+            contentHeight: 12_000
+        )
+
+        #expect(visibleRect.height == 12_000)
+        #expect(visibleRect.minY == 0)
+        #expect(visibleRect.maxY == 12_000)
+    }
+
+    @Test
+    func visibleRowRangeStaysFiniteForInfiniteViewport() {
+        let visibleRect = VirtualLogLayout.clampedVisibleRect(
+            .infinite,
+            contentHeight: 12_000
+        )
+        let range = VirtualLogLayout.visibleRowRange(
+            dirtyRect: visibleRect,
+            rowHeight: 24,
+            verticalPadding: 0,
+            rowCount: 500
+        )
+
+        #expect(range.lowerBound == 0)
+        #expect(range.upperBound == 500)
+    }
 }

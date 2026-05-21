@@ -1089,13 +1089,18 @@ enum VirtualLogLayout {
             return visibleRect
         }
 
-        let maxOriginY = max(0, contentHeight - visibleRect.height)
+        // Clamp height as well as origin. AppKit returns NSView.infiniteRect
+        // (height ≈ 1.79e+308) while the view is unattached or its scroll view
+        // has not laid out yet; without this clamp the .scroll branch evaluates
+        // Int(ceil(infinity / rowHeight)) and traps on the overflow conversion.
+        let clampedHeight = min(visibleRect.height, contentHeight)
+        let maxOriginY = max(0, contentHeight - clampedHeight)
         let clampedOriginY = min(max(visibleRect.minY, 0), maxOriginY)
         return NSRect(
             x: visibleRect.minX,
             y: clampedOriginY,
             width: visibleRect.width,
-            height: visibleRect.height
+            height: clampedHeight
         )
     }
 
