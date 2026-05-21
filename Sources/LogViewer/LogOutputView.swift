@@ -864,10 +864,12 @@ private final class VirtualLogHostingDocumentView<Line: Identifiable, RowContent
         case .scroll:
             return CGFloat(displayCount) * hostConfiguration.rowHeight
         case .wrap:
-            guard displayCount > 0 else { return 0 }
-            guard let lastOffset = rowOffsets.last, let lastHeight = rowHeights.last else {
-                return 0
-            }
+            let rowCount = wrappedMetricsRowCount
+            guard rowCount > 0 else { return 0 }
+
+            let lastIndex = rowCount - 1
+            let lastOffset = rowOffsets[lastIndex]
+            let lastHeight = rowHeights[lastIndex]
             return lastOffset + lastHeight
         }
     }
@@ -999,37 +1001,28 @@ private final class VirtualLogHostingDocumentView<Line: Identifiable, RowContent
     }
 
     private var wrappedMetricsRowCount: Int {
-        min(displayCount, rowOffsets.count, rowHeights.count)
+        VirtualLogLayout.wrappedMetricsRowCount(
+            displayCount: displayCount,
+            rowOffsets: rowOffsets,
+            rowHeights: rowHeights
+        )
     }
 
     private func firstWrappedRowIntersecting(minY: CGFloat, rowCount: Int) -> Int {
-        var low = 0
-        var high = rowCount
-
-        while low < high {
-            let mid = (low + high) / 2
-            if rowOffsets[mid] + rowHeights[mid] <= minY {
-                low = mid + 1
-            } else {
-                high = mid
-            }
-        }
-        return low
+        VirtualLogLayout.firstWrappedRowIntersecting(
+            minY: minY,
+            rowCount: rowCount,
+            rowOffsets: rowOffsets,
+            rowHeights: rowHeights
+        )
     }
 
     private func firstWrappedRowStarting(atOrAfter maxY: CGFloat, rowCount: Int) -> Int {
-        var low = 0
-        var high = rowCount
-
-        while low < high {
-            let mid = (low + high) / 2
-            if rowOffsets[mid] < maxY {
-                low = mid + 1
-            } else {
-                high = mid
-            }
-        }
-        return low
+        VirtualLogLayout.firstWrappedRowStarting(
+            atOrAfter: maxY,
+            rowCount: rowCount,
+            rowOffsets: rowOffsets
+        )
     }
 
     private func wrappedRowHeight(for text: String, contentWidth: CGFloat) -> CGFloat {
@@ -1125,5 +1118,52 @@ enum VirtualLogLayout {
 
         guard first < last else { return 0..<0 }
         return first..<last
+    }
+
+    static func wrappedMetricsRowCount(
+        displayCount: Int,
+        rowOffsets: [CGFloat],
+        rowHeights: [CGFloat]
+    ) -> Int {
+        min(max(displayCount, 0), rowOffsets.count, rowHeights.count)
+    }
+
+    static func firstWrappedRowIntersecting(
+        minY: CGFloat,
+        rowCount: Int,
+        rowOffsets: [CGFloat],
+        rowHeights: [CGFloat]
+    ) -> Int {
+        var low = 0
+        var high = min(max(rowCount, 0), rowOffsets.count, rowHeights.count)
+
+        while low < high {
+            let mid = (low + high) / 2
+            if rowOffsets[mid] + rowHeights[mid] <= minY {
+                low = mid + 1
+            } else {
+                high = mid
+            }
+        }
+        return low
+    }
+
+    static func firstWrappedRowStarting(
+        atOrAfter maxY: CGFloat,
+        rowCount: Int,
+        rowOffsets: [CGFloat]
+    ) -> Int {
+        var low = 0
+        var high = min(max(rowCount, 0), rowOffsets.count)
+
+        while low < high {
+            let mid = (low + high) / 2
+            if rowOffsets[mid] < maxY {
+                low = mid + 1
+            } else {
+                high = mid
+            }
+        }
+        return low
     }
 }

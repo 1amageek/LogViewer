@@ -73,4 +73,38 @@ struct VirtualLogLayoutTests {
 
         #expect(range.isEmpty)
     }
+
+    @Test
+    func wrappedMetricsRowCountClampsToAvailableMetrics() {
+        let rowCount = VirtualLogLayout.wrappedMetricsRowCount(
+            displayCount: 10,
+            rowOffsets: [0, 20, 40],
+            rowHeights: [20, 20]
+        )
+
+        #expect(rowCount == 2)
+    }
+
+    @Test
+    func firstWrappedRowIntersectingClampsStaleRowCount() {
+        let row = VirtualLogLayout.firstWrappedRowIntersecting(
+            minY: 45,
+            rowCount: 10,
+            rowOffsets: [0, 20, 40],
+            rowHeights: [20, 20, 20]
+        )
+
+        #expect(row == 2)
+    }
+
+    @Test
+    func firstWrappedRowStartingClampsStaleRowCount() {
+        let row = VirtualLogLayout.firstWrappedRowStarting(
+            atOrAfter: 45,
+            rowCount: 10,
+            rowOffsets: [0, 20, 40]
+        )
+
+        #expect(row == 3)
+    }
 }
